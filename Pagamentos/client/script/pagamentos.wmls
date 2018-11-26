@@ -1,0 +1,228 @@
+package pagamentos;
+/******************************************************************************/
+
+use url PhASTError     "package://phast#utils/error.wmlsc";
+use url RT             "package://phast#utils/runtime.wmlsc";
+use url Service        "package://phast#applet/service.wmlsc";
+use url PhASTDisplay   "package://phast#utils/display.wmlsc";
+use url Message        "package://tefui#ui/message.wmlsc";
+use url Product        "package://tef#trns/product.wmlsc";
+use url Menu           "package://tefui#ui/menu.wmlsc";
+use url Call           "package://vm#core/call.wmlsc";
+
+/******************************************************************************/
+extern function MODULE_NAME()    { return "pagamentos"; }
+extern function MODULE_VERSION() { return PhType.set(PhType.create(PhType.VERSION), "1.0.0.0"); }
+extern function MODULE_ID()      { return 0x00; }
+
+
+extern function PAYMENT_REQUEST_DEFINITION()
+{
+  return
+  "{"                          +
+  "  value       :string;"     +
+  "  parcells    :string;"     +
+  "  print       :boolean;"    +
+  "  type        :byte;"       +
+  "  include {"                +
+  "    trnsTypes :byteList;"   +
+  "    acquires  :stringList;" +
+  "    ecs       :stringList"  +
+  "  };"                       +
+  "  exclude {"                +
+  "    trnsTypes :byteList;"   +
+  "    acquires  :stringList;" +
+  "    ecs       :stringList"  +
+  "  }"                        +
+  "}";
+}
+
+extern function PAYMENT_RESPONSE_DEFINITION() { return
+  "{"                        +
+    "result {"               +
+      "error:     string;"   +
+      "message:   string"    +
+    "};"                     +
+    "acquire {"              +
+      "id:        string;"   +
+      "name:      string"    +
+    "};"                     +
+    "ec {"                   +
+      "id:        string;"   +
+      "name:      string;"   +
+      "type:      byte;"     +
+      "nationalId:string;"   +
+      "address:   string"    +
+    "};"                     +
+    "product {"              +
+      "id:        byte;"     +
+      "name:      string"    +
+    "};"                     +
+    "card {"                 +
+      "brand:     string;"   +
+      "pan:       string;"   +
+      "holder:    string;"   +
+      "exp:       string;"   +
+      "service:   word"      +
+    "};"                     +
+    "payment {"              +
+      "type:      byte;"     +
+      "value:     string;"   +
+      "parcells:  string;"   +
+      "datetime:  datetime;" +
+      "nsu {"                +
+        "client:  dword;"    +
+        "server:  dword;"    +
+        "acquire: string;"   + // bit 127
+        "auth:    dword"     + // bit 38
+      "};"                   +
+      "vias: longStringList" +
+    "}"                      +
+  "}";
+}
+
+
+/******************************************************************************/
+extern function init(applet)
+{
+  var result      = false;
+  var runtimeData = RT#getRuntimeData();
+
+  result = PhASTError#addErrorsToContext("package://pagamentos#i18n/errors.wmlsc");
+
+  return result;
+}
+
+/******************************************************************************/
+extern function showmenu()
+{
+  var opt         = 0;
+  var items       = [];
+  
+  
+  PhList.add(items, "Crédito");
+  PhList.add(items, "Débito");
+  PhList.add(items, "Fiado");
+
+  opt = Menu#showMenu("Pagamento", [items, 0], false, false);
+
+  if(opt == 0)
+  {
+    showCredit();
+  }
+  else if(opt == 1)
+  {
+    debit();
+  } 
+  else if(opt == 3)
+  {
+    showFiado();
+  }
+  
+}
+
+/******************************************************************************/
+extern function showFiado()
+{
+  var opt = 0;
+  var items = [];
+  
+  opt = Menu#showFiado("Fiado", [items, 0], false, false);
+  
+  if(opt == 0)
+  {
+    processFiado();
+  }else if(opt == 1)
+  {
+    
+  }
+  
+}
+
+extern function showCredit()
+{
+  var opt         = 0;
+  var items       = [];
+  
+  
+  PhList.add(items, "Crédito");
+  PhList.add(items, "Parcelado Administradora");
+  PhList.add(items, "Parcelado Estabelecimento");
+
+  opt = Menu#showMenu("Crédito", [items, 0], false, false);
+
+  if(opt == 0)
+  {
+    execute(Product#CREDIT());
+  }
+  else if (opt == 1)
+  {
+    execute(Product#CREDIT_PARCELLED_ADM());
+  }
+  else if (opt == 2)
+  {
+    execute(Product#CREDIT_PARCELLED_EC());
+  }
+}
+
+
+/******************************************************************************/
+extern function debit()
+{
+  execute(Product#DEBIT());
+}
+
+
+/******************************************************************************/
+function execute(type)
+{
+  var request = PhStruct.create(PAYMENT_REQUEST_DEFINITION());
+  PhStruct.set(request,  "type", type);
+  var response = Service#execute("tef.payment", [request]);
+  if (isvalid response)
+  {
+    if (PhStruct.get(response, "payment.nsu.server") != 0)
+    {
+      var listMemo = PhType.get(PhType.create(PhType.MEMO));
+      PhList.add(listMemo,"Pagamento efetuado.");
+      PhList.add(listMemo,"-------------------");
+      PhList.add(listMemo,"");
+      PhList.add(listMemo, "Valor: "            +  PhStruct.get(response, "payment.value"));
+      PhList.add(listMemo, "NSU Client: "       +  PhStruct.get(response, "payment.nsu.client"));
+      PhList.add(listMemo, "NSU Server: "       +  PhStruct.get(response, "payment.nsu.server"));
+      PhList.add(listMemo, "NSU Acquire: "      +  PhStruct.get(response, "payment.nsu.acquire"));
+      PhList.add(listMemo, "Acquire Id: "       +  PhStruct.get(response, "acquire.id"));
+      PhList.add(listMemo, "Acquire Name: "     +  PhStruct.get(response, "acquire.name"));
+      PhList.add(listMemo, "Card brand: "       +  PhStruct.get(response, "card.brand"));
+      PhList.add(listMemo, "Card Pan: "         +  PhStruct.get(response, "card.pan"));
+      PhList.add(listMemo, "Payment type: "     +  PhStruct.get(response, "payment.type"));
+      PhList.add(listMemo, "Payment parcells: " +  PhStruct.get(response, "payment.parcells"));
+    
+    
+      PhASTDisplay#showMemoInfo("Pagamento", listMemo, 0xFFFF, 0, true, 0x30, true, "Exit");
+    }
+    else
+    {
+      Message#showMessage("Result TEF:| " + PhStruct.get(response, "result.message"), Message#DELAY_ALERT(), Message#BEEP_MESSAGE());
+    }
+  }
+}
+
+/******************************************************************************/
+extern function addButtonsToIdleScreen()
+{
+  var result  = [];
+  var btPayment = ["Pagamento",      PhKeyBoard.KEY_00, "package://pagamentos/pagamentos.wmlsc#showmenu"];
+
+  PhList.add(result, btPayment);
+
+  return result;
+}
+/******************************************************************************/
+
+extern function start()
+{
+  Call#call("package://pagamentos/pagamentos.wmlsc#showmenu", []);
+  return true;
+}
+/******************************************************************************/
