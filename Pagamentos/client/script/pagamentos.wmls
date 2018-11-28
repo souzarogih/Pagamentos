@@ -9,6 +9,7 @@ use url Message        "package://tefui#ui/message.wmlsc";
 use url Product        "package://tef#trns/product.wmlsc";
 use url Menu           "package://tefui#ui/menu.wmlsc";
 use url Call           "package://vm#core/call.wmlsc";
+use url Input          "package://phast#ui/input.wmlsc";
 
 /******************************************************************************/
 extern function MODULE_NAME()    { return "pagamentos"; }
@@ -122,17 +123,26 @@ extern function showmenu()
 }
 
 /******************************************************************************/
-extern function showFiado()
+extern function showFiado()//Essa função faz venda fiada.
 {
-  var opt = 0;
-  var items = [];
-  
-  opt = Menu#showFiado("Fiado", [items, 0], false, false);
-  
-  if(opt == 0)
+  var codigoFiado = 0;
+  var valorTransaction;
+    
+    codigoFiado = Input#getString ("Código Fiado: ", "", "", 15, invalid, true);
+    Message#showMessage("Código Fiado: |" + codigoFiado, Message#DELAY_ALERT(), Message#BEEP_MESSAGE());
+    
+    //depois de pegar o código do fiado, deve consultar se existe.
+    //se exisitir continuar na execução da linha mais abaixo.
+    
+    valorTransaction = Input#getString ("Valor Da Venda: ", "", "", 15, invalid, true);
+    Message#showMessage("Valor Venda: |" + valorTransaction, Message#DELAY_ALERT(), Message#BEEP_MESSAGE());
+    
+    //Lê o valor da venda e processa.
+      
+  if(codigoFiado == 0)
   {
-    processFiado();
-  }else if(opt == 1)
+    //processFiado();
+  }else if(codigoFiado == 1)
   {
     
   }
@@ -154,14 +164,17 @@ extern function showCredit()
   if(opt == 0)
   {
     execute(Product#CREDIT());
+    phidelidade();
   }
   else if (opt == 1)
   {
     execute(Product#CREDIT_PARCELLED_ADM());
+    phidelidade();
   }
   else if (opt == 2)
   {
     execute(Product#CREDIT_PARCELLED_EC());
+    phidelidade();
   }
 }
 
@@ -170,7 +183,71 @@ extern function showCredit()
 extern function debit()
 {
   execute(Product#DEBIT());
+  phidelidade();
 }
+/******************************************************************************/
+extern function phidelidade()
+{
+      
+    var cpfFidelidade;
+    
+    cpfFidelidade = Input#getString ("Informe CPF: ", "", "", 15, invalid, true);
+    Message#showMessage("String:|" + cpfFidelidade, Message#DELAY_ALERT(), Message#BEEP_MESSAGE());
+    
+}
+/******************************************************************************/
+
+extern function newPhidelidade()
+{
+  
+}
+/******************************************************************************/
+
+extern function queryPhidelidade()
+{
+  
+}
+/******************************************************************************/
+
+extern function registerPhidelidades()
+{
+  
+}
+/******************************************************************************/
+
+extern function showMenuPhidelidade()//Função utilizado para exibir a menu do Phidelidades.
+{
+  var opt         = 0;
+  var items       = [];
+  var result;
+  
+  /* ítems para o menu */
+  PhList.add(items, "Novo Phidelidade");
+  PhList.add(items, "Consultar Phidelidade");
+  PhList.add(items, "Cadastrar Phidelidade");
+      
+  opt = Menu#showMenu("Phidelidade", [items, 0], false, false);
+  
+  if (opt == 0)
+  {
+    newPhidelidade();
+  }
+  if (opt == 1)
+  {
+    queryPhidelidade();
+  }
+  if (opt == 2)
+  {
+    registerPhidelidades();
+  }
+  if (opt > 3)
+  {
+    Message#showMessage("Opção Não Existe:|" + result, Message#DELAY_ALERT(), Message#BEEP_MESSAGE());
+  }
+}
+
+
+
 
 
 /******************************************************************************/
